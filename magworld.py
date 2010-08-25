@@ -7,6 +7,7 @@
 #
 #    i, j, k, l  =  move
 #    m           =  toggle magnetism on/off (so we can pull, not just push)
+#    b           =  toggle blind mode
 #    q           =  quit
 #
 # When you collide with an object, you will be stopped.  But you can
@@ -26,6 +27,7 @@ from math import sqrt, pi, sin, cos, atan2
 
 
 red = (255,0,0)
+magenta = (255,0,255)
 green = (0,255,0)
 orange = (255,128,0)
 yellow = (255,255,0)
@@ -161,18 +163,65 @@ def wtop(world):
     return (wx * cellsize, wy * cellsize)
 
 
+
+blind_mode = True
+
+# center of window
+cx, cy = M/2,N/2
+
 def draw():
 
-    for body in bodies:
-        for dx,dy in body.points:
-            pygame.draw.rect(screen, body.color,
-                             wtop((body.x + dx,
-                                   body.y + dy))
+    # hide objects, show sensor values
+    if blind_mode:
+
+        for dx, dy in agentbody.points:
+            pygame.draw.rect(screen, agentbody.color,
+                             wtop((cx + dx,
+                                   cy + dy))
+                             + (cellsize, cellsize))
+
+        offsets = ((-1,6),
+                   (13,6),
+                   (6,-1),
+                   (6,13),
+                   )
+        for (dx, dy), (ox, oy) in zip(cardinal_directions, offsets):
+            if agentbody.neighbors(dx, dy):
+                pygame.draw.rect(screen, blue,
+                                 wtop((ox + cx, oy + cy))
+                                 + (cellsize, cellsize))
+
+        motion_indicators = {(1,0): (10,6),
+                             (-1,0): (2,6),
+                             (0,1): (6,10),
+                             (0,-1): (6,2)}
+
+        if adx or ady:
+            ix, iy = motion_indicators[adx,ady]
+            pygame.draw.rect(screen, green,
+                             wtop((cx + ix, cy + iy))
                              + (cellsize, cellsize))
             
-
+            
+        if magnetism:
+            pygame.draw.rect(screen, magenta,
+                             wtop((cx+6, cy+6))
+                             + (cellsize, cellsize))
+            
+            
+            
     
-dx = dy = 0
+    else:
+        for body in bodies:
+            for dx,dy in body.points:
+                pygame.draw.rect(screen, body.color,
+                                 wtop((body.x + dx,
+                                       body.y + dy))
+                                 + (cellsize, cellsize))
+            
+
+# motion    
+mdx = mdy = 0
 
 clock = Clock()
 
@@ -187,7 +236,7 @@ while True:
     adx = ady = 0
 
     # are we trying to move?
-    if not (dx == dy == 0):
+    if mdx or mdy:
         
         # test for impacts
         oldcomovers = comovers
@@ -197,9 +246,9 @@ while True:
         # determine comovers
         if magnetism:
             for b in agentbody.self_and_all_magnetic_neighbors():
-                b.build_contact_subtree(dx, dy, comovers)
+                b.build_contact_subtree(mdx, mdy, comovers)
         else:
-            agentbody.build_contact_subtree(dx, dy, comovers)
+            agentbody.build_contact_subtree(mdx, mdy, comovers)
 
             
         #comovers = agentbody.contact_subtree(dx, dy)
@@ -210,8 +259,8 @@ while True:
 
         # are we stuck?
         if not any([body.fixed for body in comovers]) and not temp_stop:
-            adx = dx
-            ady = dy
+            adx = mdx
+            ady = mdy
 
         for body in comovers:
             body.x += adx
@@ -219,7 +268,7 @@ while True:
 
     format = "Timestep: %4s     Input: %2s %2s %s     Output: %2s %2s %s"
     print format  % (t,
-                     dx, dy,
+                     mdx, mdy,
                      1 if magnetism else 0,
                      adx, ady,
                      " ".join([('1' if agentbody.neighbors(dx2,dy2) else '0')
@@ -235,21 +284,23 @@ while True:
              mdown = pygame.mouse.get_pos()
          elif event.type is pygame.MOUSEBUTTONUP:
              pass
-         elif event.type is pygame.KEYDOWN and dx == dy == 0:
+         elif event.type is pygame.KEYDOWN and mdx == mdy == 0:
+             if event.unicode == 'b':
+                 blind_mode = not blind_mode
              if event.unicode == 'i':
-                 dy = -1
+                 mdy = -1
              if event.unicode == 'k':
-                 dy = 1
+                 mdy = 1
              if event.unicode == 'j':
-                 dx = -1
+                 mdx = -1
              if event.unicode == 'l':
-                 dx = 1
+                 mdx = 1
              if event.unicode == 'm':
                  magnetism = not magnetism
              if event.unicode == 'q':
                  pygame.quit(); sys.exit();
          elif event.type is pygame.KEYUP:
-             dx = dy = 0
+             mdx = mdy = 0
              comovers = None
              temp_stop = False
 
