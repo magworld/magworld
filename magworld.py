@@ -15,16 +15,26 @@
 #
 #
 
-
-
-
-
-from pygame.time import Clock
-
 import pygame
+from pygame.time import Clock
 import sys
 from math import sqrt, pi, sin, cos, atan2
 
+### Globals -------------------------------------------------------
+
+# size of the world, in cells
+M = N = 200
+
+# how many pixels to use for each cell
+cellsize = 5
+
+
+
+############################################################
+### useful constants
+
+# center of window
+cx, cy = M/2,N/2
 
 red = (255,0,0)
 magenta = (255,0,255)
@@ -38,17 +48,18 @@ black = (0,0,0)
 pink = (255,200,200)
 gray = (220, 220, 220)
 
-
 cardinal_directions = ((-1,0),
                        (1,0),
                        (0,-1),
                        (0,1))
 
+############################################################
+# This class represents an object in the world.
 class Body:
     def __init__(self, points, x, y, color=black, name="?", fixed=False):
         self.x = x
         self.y = y
-        self.points = set(points)
+        self.points = set(points) # each point is an (x,y) offset
         self.color = color
         self.name = name
         self.fixed = fixed
@@ -91,6 +102,7 @@ class Body:
     def __repr__(self):
         return self.name
 
+### Helper code for building bodies
 
 def hline(x, y, w):
     return [(i,y) for i in xrange(x,x+w)]
@@ -109,6 +121,11 @@ class Rect(Body):
     def __init__(self, w, h, x, y, **kwargs):
         points = rect(w,h)
         Body.__init__(self, points, x, y, **kwargs)
+
+
+
+##########################################################
+### Actually build a few bodies
 
 agentbody = Rect(13, 13, 30, 50, color=red, name='agent')
 arena = Body(rect(190,190)+
@@ -136,38 +153,14 @@ bodies = [agentbody, arena,
                name='L')
           ]
                
-            
-
-
-
-M = N = 200
-cellsize = 5
-
-captured = []
-
-pygame.init()
-
-screen = pygame.display.set_mode((M*cellsize,N*cellsize))
-
-
-screen.fill(white)
-
-
-
-
-
+##################################################################
+# drawing code            
 
 # world to pixel
 def wtop(world):
     wx, wy = world
     return (wx * cellsize, wy * cellsize)
 
-
-
-blind_mode = True
-
-# center of window
-cx, cy = M/2,N/2
 
 def draw():
 
@@ -218,16 +211,30 @@ def draw():
                                  wtop((body.x + dx,
                                        body.y + dy))
                                  + (cellsize, cellsize))
+
             
+
+
+
+
+
+
+
+pygame.init()
+screen = pygame.display.set_mode((M*cellsize,N*cellsize))
+screen.fill(white)
+clock = Clock()
+
 
 # motion    
 mdx = mdy = 0
 
-clock = Clock()
-
-comovers = None
+blind_mode = False
 magnetism = False
 temp_stop = False
+
+
+comovers = None
 
 t = 0
 
@@ -266,6 +273,8 @@ while True:
             body.x += adx
             body.y += ady
 
+
+    # print input and output
     format = "Timestep: %4s     Input: %2s %2s %s     Output: %2s %2s %s"
     print format  % (t,
                      mdx, mdy,
@@ -274,9 +283,6 @@ while True:
                      " ".join([('1' if agentbody.neighbors(dx2,dy2) else '0')
                                for dx2, dy2 in cardinal_directions]))
 
-
-
-    # check for quit events
     for event in pygame.event.get():
          if event.type == pygame.QUIT:
               pygame.quit(); sys.exit();
@@ -306,9 +312,7 @@ while True:
 
     # erase the screen
     screen.fill(white)
-
     draw()
-
 
     # update the screen
     pygame.display.update()
