@@ -218,6 +218,8 @@ def draw():
 
 
 
+##################################################################
+# pygame setup
 
 
 pygame.init()
@@ -226,63 +228,97 @@ screen.fill(white)
 clock = Clock()
 
 
-# motion    
-mdx = mdy = 0
-
 blind_mode = False
-magnetism = False
-temp_stop = False
 
-
-comovers = None
+               
+##################################################################
+# the actual simulation code
 
 t = 0
 
-while True:
+# The following diagram shows the dynamics of the system.
+#
+# world_state[0], effectors[0]
+#           |      |    
+#        evolve_world()
+#           |      |
+#           |    sensors[1]
+#           |        |
+#           |      behave()
+#           |        |
+# world_state[1], effectors[1]
+#           |      |    
+#        evolve_world()
+#           |      |
+# etc.
 
-    adx = ady = 0
+# World state consists of the following variables:
 
-    # are we trying to move?
+temp_stop = False   # whether the agent has been stopped due to a
+                    # collision
+
+comovers = None     # bodies currently moving with the agent, or None
+                    # if the agent isn't moving
+
+# Effectors consist of
+
+mdx = mdy = 0       # motion we're trying to make
+magnetism = False   # whether or not magnetism is on
+
+# Sensors consist of
+
+adx = ady = 0       # motion just made
+
+
+# Given the current world state and effectors, compute new world state
+# and sensor values
+def evolve_world():
+    global adx, ady, mdx, mdy, comovers, magnetism, temp_stop
+
+    # is agent trying to move?
     if mdx or mdy:
         
-        # test for impacts
+        # we need to know the old comovers to test for collisions
         oldcomovers = comovers
 
-        comovers = set()
-
         # determine comovers
+        comovers = set()
         if magnetism:
             for b in agentbody.self_and_all_magnetic_neighbors():
                 b.build_contact_subtree(mdx, mdy, comovers)
         else:
             agentbody.build_contact_subtree(mdx, mdy, comovers)
 
-            
-        #comovers = agentbody.contact_subtree(dx, dy)
-
+        # check for collisions
         if oldcomovers != None and comovers != oldcomovers:
             # we've hit a new object; stop temporarily
             temp_stop = True
 
-        # are we stuck?
-        if not any([body.fixed for body in comovers]) and not temp_stop:
+        # set sensors to indicate motion as appropriate
+        if any([body.fixed for body in comovers]) or temp_stop:
+            adx = ady = 0
+        else:
             adx = mdx
             ady = mdy
 
+        # actually move the bodies appropriately
         for body in comovers:
             body.x += adx
             body.y += ady
 
+    else:
+        # agent has chosen to stop
+        adx = ady = 0
+        comovers = None
+        temp_stop = False
 
-    # print input and output
-    format = "Timestep: %4s     Input: %2s %2s %s     Output: %2s %2s %s"
-    print format  % (t,
-                     mdx, mdy,
-                     1 if magnetism else 0,
-                     adx, ady,
-                     " ".join([('1' if agentbody.neighbors(dx2,dy2) else '0')
-                               for dx2, dy2 in cardinal_directions]))
-
+# For a real agent, this would take the current sensor values and
+# compute new effector values.  Since at present a human is playing
+# the role of the agent, we use this subroutine as a place to process
+# the human's commands.
+def behave():
+    global mdx, mdy, magnetism, blind_mode
+    
     for event in pygame.event.get():
          if event.type == pygame.QUIT:
               pygame.quit(); sys.exit();
@@ -307,18 +343,33 @@ while True:
                  pygame.quit(); sys.exit();
          elif event.type is pygame.KEYUP:
              mdx = mdy = 0
-             comovers = None
-             temp_stop = False
 
-    # erase the screen
+
+#############################################################
+# main loop
+
+while True:
+
+    # step the simulation
+    evolve_world()
+
+    # redraw
     screen.fill(white)
     draw()
-
-    # update the screen
     pygame.display.update()
 
+    # let the agent change its effector values
+    behave()
+
+    # print sensor and effector values
+    format = "Timestep: %4s     Effectors: %2s %2s %s     Sensors: %2s %2s %s"
+    print format  % (t,
+                     mdx, mdy,
+                     1 if magnetism else 0,
+                     adx, ady,
+                     " ".join([('1' if agentbody.neighbors(dx2,dy2) else '0')
+                               for dx2, dy2 in cardinal_directions]))
+
+    # delay to get a stable framerate
     clock.tick(60)
-
-    #print agentbody.contact_subtree(0,-1)
-
     t += 1
